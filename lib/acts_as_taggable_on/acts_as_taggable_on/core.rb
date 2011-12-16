@@ -20,9 +20,9 @@ module ActsAsTaggableOn::Taggable
           context_tags     = tags_type.to_sym
 
           class_eval do
-                    has_many context_taggings, :as => :taggable, :dependent => :destroy, :include => :tag, :class_name => "ActsAsTaggableOn::Tagging",
-                    :conditions => ["#{ActsAsTaggableOn::Tagging.table_name}.context = ?", tags_type]
-                    has_many context_tags, :through => context_taggings, :source => :tag, :class_name => "ActsAsTaggableOn::Tag"
+            has_many context_taggings, :as => :taggable, :dependent => :destroy, :include => :tag, :class_name => "ActsAsTaggableOn::Tagging",
+              :conditions => ["#{ActsAsTaggableOn::Tagging.table_name}.context = ?", tags_type]
+            has_many context_tags, :through => context_taggings, :source => :tag, :class_name => "ActsAsTaggableOn::Tag"
           end
 
           class_eval %(
@@ -60,6 +60,7 @@ module ActsAsTaggableOn::Taggable
       #                       * <tt>:any</tt> - if set to true, return objects that are tagged with *ANY* of the specified tags
       #                       * <tt>:match_all</tt> - if set to true, return objects that are *ONLY* tagged with the specified tags
       #                       * <tt>:owned_by</tt> - return objects that are *ONLY* owned by the owner
+      #                       * <tt>:like</tt> - use like %term% for matchings
       #
       # Example:
       #   User.tagged_with("awesome", "cool")                     # Users that are tagged with awesome and cool
@@ -86,7 +87,11 @@ module ActsAsTaggableOn::Taggable
 
         elsif options.delete(:any)
           # get tags, drop out if nothing returned (we need at least one)
-          tags = ActsAsTaggableOn::Tag.named_any(tag_list)
+          if options.delete(:like)
+            tags = ActsAsTaggableOn::Tag.named_like_any(tag_list)
+          else
+            tags = ActsAsTaggableOn::Tag.named_any(tag_list)
+          end
           return scoped(:conditions => "1 = 0") unless tags.length > 0
 
           # setup taggings alias so we can chain, ex: items_locations_taggings_awesome_cool_123
@@ -97,8 +102,8 @@ module ActsAsTaggableOn::Taggable
           taggings_alias   = "#{alias_base_name}#{taggings_context}_taggings_#{tags.map(&:safe_name).join('_')}_#{rand(1024)}"
 
           tagging_join  = "JOIN #{ActsAsTaggableOn::Tagging.table_name} #{taggings_alias}" +
-                          "  ON #{taggings_alias}.taggable_id = #{table_name}.#{primary_key}" +
-                          " AND #{taggings_alias}.taggable_type = #{quote_value(base_class.name)}"
+            "  ON #{taggings_alias}.taggable_id = #{table_name}.#{primary_key}" +
+          " AND #{taggings_alias}.taggable_type = #{quote_value(base_class.name)}"
           tagging_join << " AND " + sanitize_sql(["#{taggings_alias}.context = ?", context.to_s]) if context
 
           # don't need to sanitize sql, map all ids and join with OR logic
@@ -108,7 +113,11 @@ module ActsAsTaggableOn::Taggable
           joins << tagging_join
 
         else
-          tags = ActsAsTaggableOn::Tag.named_any(tag_list)
+          if options.delete(:like)
+            tags = ActsAsTaggableOn::Tag.named_like_any(tag_list)
+          else
+            tags = ActsAsTaggableOn::Tag.named_any(tag_list)
+          end
           return empty_result unless tags.length == tag_list.length
 
           tags.each do |tag|
@@ -117,18 +126,18 @@ module ActsAsTaggableOn::Taggable
             taggings_alias = "#{alias_base_name}_taggings_#{prefix}"
 
             tagging_join  = "JOIN #{ActsAsTaggableOn::Tagging.table_name} #{taggings_alias}" +
-                            "  ON #{taggings_alias}.taggable_id = #{table_name}.#{primary_key}" +
-                            " AND #{taggings_alias}.taggable_type = #{quote_value(base_class.name)}" +
-                            " AND #{taggings_alias}.tag_id = #{tag.id}"
+              "  ON #{taggings_alias}.taggable_id = #{table_name}.#{primary_key}" +
+            " AND #{taggings_alias}.taggable_type = #{quote_value(base_class.name)}" +
+            " AND #{taggings_alias}.tag_id = #{tag.id}"
             tagging_join << " AND " + sanitize_sql(["#{taggings_alias}.context = ?", context.to_s]) if context
 
             if owned_by
-                tagging_join << " AND " +
-                    sanitize_sql([
-                        "#{taggings_alias}.tagger_id = ? AND #{taggings_alias}.tagger_type = ?",
-                        owned_by.id,
-                        owned_by.class.to_s
-                    ])
+              tagging_join << " AND " +
+                sanitize_sql([
+                             "#{taggings_alias}.tagger_id = ? AND #{taggings_alias}.tagger_type = ?",
+                             owned_by.id,
+                             owned_by.class.to_s
+              ])
             end
 
             joins << tagging_join
@@ -139,8 +148,8 @@ module ActsAsTaggableOn::Taggable
 
         if options.delete(:match_all)
           joins << "LEFT OUTER JOIN #{ActsAsTaggableOn::Tagging.table_name} #{taggings_alias}" +
-                   "  ON #{taggings_alias}.taggable_id = #{table_name}.#{primary_key}" +
-                   " AND #{taggings_alias}.taggable_type = #{quote_value(base_class.name)}"
+            "  ON #{taggings_alias}.taggable_id = #{table_name}.#{primary_key}" +
+          " AND #{taggings_alias}.taggable_type = #{quote_value(base_class.name)}"
 
 
           group_columns = ActsAsTaggableOn::Tag.using_postgresql? ? grouped_column_names_for(self) : "#{table_name}.#{primary_key}"
