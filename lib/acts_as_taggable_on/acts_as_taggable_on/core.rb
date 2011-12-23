@@ -68,6 +68,7 @@ module ActsAsTaggableOn::Taggable
       #   User.tagged_with("awesome", "cool", :any => true)       # Users that are tagged with awesome or cool
       #   User.tagged_with("awesome", "cool", :match_all => true) # Users that are tagged with just awesome and cool
       #   User.tagged_with("awesome", "cool", :owned_by => foo ) # Users that are tagged with just awesome and cool by 'foo'
+      #   User.tagged_with("awesome", "cool", :like => {:min => 5}) # Users that are tagged with %awesome% and cool by 'foo'
       def tagged_with(tags, options = {})
         tag_list = ActsAsTaggableOn::TagList.from(tags)
         empty_result = scoped(:conditions => "1 = 0")
@@ -87,8 +88,11 @@ module ActsAsTaggableOn::Taggable
 
         elsif options.delete(:any)
           # get tags, drop out if nothing returned (we need at least one)
-          if options.delete(:like)
-            tags = ActsAsTaggableOn::Tag.named_like_any(tag_list)
+          if like = options.delete(:like)
+            min = like[:min] || 0
+            short_tags = tag_list.select{|t| t.size < min}
+            long_tags = tag_list.select{|t| t.size >= min}
+            tags = ActsAsTaggableOn::Tag.named_any(short_tags) + ActsAsTaggableOn::Tag.named_like_any(long_tags)
           else
             tags = ActsAsTaggableOn::Tag.named_any(tag_list)
           end
@@ -113,8 +117,11 @@ module ActsAsTaggableOn::Taggable
           joins << tagging_join
 
         else
-          if options.delete(:like)
-            tags = ActsAsTaggableOn::Tag.named_like_any(tag_list)
+          if like = options.delete(:like)
+            min = like[:min] || 0
+            short_tags = tag_list.select{|t| t.size < min}
+            long_tags = tag_list.select{|t| t.size >= min}
+            tags = ActsAsTaggableOn::Tag.named_any(short_tags) + ActsAsTaggableOn::Tag.named_like_any(long_tags)
           else
             tags = ActsAsTaggableOn::Tag.named_any(tag_list)
           end
