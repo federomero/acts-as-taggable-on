@@ -90,13 +90,15 @@ module ActsAsTaggableOn::Taggable
           # get tags, drop out if nothing returned (we need at least one)
           if like = options.delete(:like)
             min = like[:min] || 0
-            short_tags = tag_list.select{|t| t.size < min}
-            long_tags = tag_list.select{|t| t.size >= min}
-            tags = ActsAsTaggableOn::Tag.named_any(short_tags) + ActsAsTaggableOn::Tag.named_like_any(long_tags)
+            short_tag_lists = tag_list.select{|t| t.size < min}
+            short_tags = short_tag_lists.empty? ? [] : ActsAsTaggableOn::Tag.named_any(short_tag_lists)
+            long_tag_lists = tag_list.select{|t| t.size >= min}
+            long_tags = long_tag_lists.empty? ? [] : ActsAsTaggableOn::Tag.named_any(long_tag_lists)
+            tags = short_tags + long_tags
           else
             tags = ActsAsTaggableOn::Tag.named_any(tag_list)
           end
-          return scoped(:conditions => "1 = 0") unless tags.length > 0
+          return scoped(:conditions => "1 = 0") if tags.length < tag_list.length
 
           # setup taggings alias so we can chain, ex: items_locations_taggings_awesome_cool_123
           # avoid ambiguous column name
@@ -119,13 +121,15 @@ module ActsAsTaggableOn::Taggable
         else
           if like = options.delete(:like)
             min = like[:min] || 0
-            short_tags = tag_list.select{|t| t.size < min}
-            long_tags = tag_list.select{|t| t.size >= min}
-            tags = ActsAsTaggableOn::Tag.named_any(short_tags) + ActsAsTaggableOn::Tag.named_like_any(long_tags)
+            short_tag_lists = tag_list.select{|t| t.size < min}
+            short_tags = short_tag_lists.empty? ? [] : ActsAsTaggableOn::Tag.named_any(short_tag_lists)
+            long_tag_lists = tag_list.select{|t| t.size >= min}
+            long_tags = long_tag_lists.empty? ? [] : ActsAsTaggableOn::Tag.named_any(long_tag_lists)
+            tags = short_tags + long_tags
           else
             tags = ActsAsTaggableOn::Tag.named_any(tag_list)
           end
-          return empty_result unless tags.length == tag_list.length
+          return empty_result if tags.length < tag_list.length
 
           tags.each do |tag|
             prefix   = "#{tag.safe_name}_#{rand(1024)}"
